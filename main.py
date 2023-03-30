@@ -4,6 +4,9 @@ from datetime import datetime as dt
 # Importa o módulo requests
 import requests
 
+# Importa o pandas com o apelido pd
+import pandas as pd
+
 # Importa o tkinter com o apelido tk
 import tkinter as tk
 
@@ -94,19 +97,24 @@ rotulo_cotacao = tk.Label(text='')
 rotulo_cotacao.grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky='NSEW')
 
 
+def formatar_data(data_selecionada):
+    # Converte a string em um objeto datetime
+    data_formatada = dt.strptime(data_selecionada, '%d/%m/%Y') 
+
+    # Converte a data numa string com o format mm-dd-aaaa
+    data_formatada = data_formatada.strftime('%m-%d-%Y')
+
+    # Retorna a data formatada
+    return data_formatada
+
+
 def obter_cotacao():
     '''Obtém a cotação da moeda selecionada.'''
     # Moeda selecionada
     moeda_selecionada = menu_moedas_disponiveis.get()
 
     # Obtém a data selecionada
-    data_selecionada = campo_data_cotacao.get()
-
-    # Converte a string em um objeto datetime
-    data_cotacao = dt.strptime(data_selecionada, '%d/%m/%Y') 
-
-    # Converte a data numa string com o format mm-dd-aaaa
-    data_cotacao = data_cotacao.strftime('%m-%d-%Y')
+    data_cotacao = formatar_data(campo_data_cotacao.get())
 
     # URL para obter a cotação de compra da moeda selecionada na data solicitada
     url = f"https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaDia(moeda=@moeda,dataCotacao=@dataCotacao)?@moeda='{moeda_selecionada}'&@dataCotacao='{data_cotacao}'&$top=1&$skip=0&$orderby=dataHoraCotacao%20desc&$format=json&$select=cotacaoCompra,dataHoraCotacao"
@@ -124,7 +132,7 @@ def obter_cotacao():
     cotacao = str(cotacao).replace('.', ',')
 
     # Texto com a cotação da moeda selecionada
-    texto_cotacao = f'A cotação para a moeda {moeda_selecionada} em {data_selecionada} era de R$ {cotacao}'
+    texto_cotacao = f'A cotação para a moeda {moeda_selecionada} em {campo_data_cotacao.get()} era de R$ {cotacao}'
 
     # Atualiza o parâmetro text do rótulo
     rotulo_cotacao['text'] = texto_cotacao
@@ -146,7 +154,10 @@ def selecionar_planilha():
     caminho_planilha = askopenfilename()
     
     # Exibe o caminho do arquivo
-    # rotulo_caminho_planilha['text'] = caminho_planilha
+    rotulo_caminho_planilha['text'] = caminho_planilha
+
+    # Retorna o caminho do arquivo
+    # return caminho_planilha
     
     
 botao_selecionar_planilha = tk.Button(text='Selecionar Planilha', command=selecionar_planilha)
@@ -172,7 +183,37 @@ campo_data_final.grid(row=8, column=1, padx=10, pady=10, sticky='NSEW')
 
 
 def obter_cotacoes():
-    pass
+    # Lê a planilha com as moedas
+    df_moedas = pd.read_excel(rotulo_caminho_planilha['text'])
+
+    # Cria uma lista com as moedas da coluna Moedas
+    moedas = list(df_moedas['Moedas'])
+
+    # Data inicial
+    data_inicial = formatar_data(campo_data_inicial.get())
+
+    # Data final
+    data_final = formatar_data(campo_data_final.get())
+
+    for moeda in moedas:
+        # URL para obter as cotações de compra das moedas selecionadas no intervalo de datas seleciondas
+        url = f"https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@moeda='{moeda}'&@dataInicial='{data_inicial}'&@dataFinalCotacao='{data_final}'&$top=1000&$skip=0&$orderby=dataHoraCotacao%20desc&$format=json&$select=cotacaoCompra,dataHoraCotacao,tipoBoletim"
+
+        # Resposta da requisição
+        resposta = requests.get(url)
+
+        # Dados da resposta
+        dados = resposta.json()
+
+        cotacoes_moeda = []
+
+        for valor in dados['value']:
+            if valor['tipoBoletim'] == 'Fechamento':
+                cotacoes_moeda.append((moeda, valor['dataHoraCotacao'], valor['cotacaoCompra'])) 
+
+        print(cotacoes_moeda)
+
+
 
 
 botao_atualizar_cotacoes = tk.Button(text='Obter Cotações', command=obter_cotacoes)
