@@ -155,9 +155,6 @@ def selecionar_planilha():
     
     # Exibe o caminho do arquivo
     rotulo_caminho_planilha['text'] = caminho_planilha
-
-    # Retorna o caminho do arquivo
-    # return caminho_planilha
     
     
 botao_selecionar_planilha = tk.Button(text='Selecionar Planilha', command=selecionar_planilha)
@@ -231,6 +228,9 @@ def obter_cotacoes():
 
     # Exporta o dataframe para um arquivo Excel
     df_cotacoes.to_excel('Cotacoes.xlsx', index=False)
+
+    # Atualiza o texto do rótulo para mensagem de sucesso
+    rotulo_mensagem_sucesso['text'] = 'Cotações obtidas com sucesso.'
 
 
 botao_atualizar_cotacoes = tk.Button(text='Obter Cotações', command=obter_cotacoes)
