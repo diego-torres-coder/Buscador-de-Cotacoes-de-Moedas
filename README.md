@@ -59,7 +59,13 @@ source venv/bin/activate
 Com o ambiente virtual ativo, instale as dependências do projeto:
 
 ```bash
-pip install numpy pandas openpyxl requests
+pip install numpy pandas openpyxl requests tkcalendar
+```
+
+Alternativamente, você pode instalar as dependências deste projeto a partir de `requirements.txt`:
+
+```bash
+pip install -r requirements.txt
 ```
 
 Agora execute o script `main.py`:

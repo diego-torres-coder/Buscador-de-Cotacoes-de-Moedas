@@ -148,13 +148,19 @@ rotulo_cotacao_varias_moedas.grid(row=4, column=0, columnspan=3, padx=10, pady=1
 rotulo_selecionar_planilha = tk.Label(text='Selecione uma planilha do Excel com as moedas na coluna A:')
 rotulo_selecionar_planilha.grid(row=5, column=0, columnspan=2, padx=10, pady=10, sticky='NSEW')
 
+# Variável que recebe o caminho absoluto da planilha selecionada pelo usuário
+var_caminho_planilha = tk.StringVar()
 
 def selecionar_planilha():
     # Obtém o caminho absoluto do arquivo selecionado
-    caminho_planilha = askopenfilename()
+    caminho_planilha = askopenfilename(title='Selecione uma planilha do Excel com as moedas na coluna A:')
     
-    # Exibe o caminho do arquivo
-    rotulo_caminho_planilha['text'] = caminho_planilha
+    # Atualiza a variável que contém o caminho da planilha selecionada
+    var_caminho_planilha.set(caminho_planilha)
+
+    if caminho_planilha:
+        # Exibe o caminho do arquivo
+        rotulo_caminho_planilha['text'] = caminho_planilha
     
     
 botao_selecionar_planilha = tk.Button(text='Selecionar Planilha', command=selecionar_planilha)
@@ -166,8 +172,8 @@ rotulo_planilha_selecionada.grid(row=6, column=0, columnspan=2, padx=10, pady=10
 # Fonte do rótulo do caminho da planilha
 fonte_caminho_planilha = tkFont.Font(family='Arial', size=10)
 
-rotulo_caminho_planilha = tk.Label(text='')
-rotulo_caminho_planilha['font'] = fonte_caminho_planilha
+rotulo_caminho_planilha = tk.Label(text='Nenhum arquivo selecionado')
+# rotulo_caminho_planilha['font'] = fonte_caminho_planilha
 rotulo_caminho_planilha.grid(row=6, column=2, padx=10, pady=10, sticky='NSEW')
 
 rotulo_data_inicial = tk.Label(text='Data Inicial:')
@@ -185,52 +191,53 @@ campo_data_final.grid(row=8, column=1, padx=10, pady=10, sticky='NSEW')
 
 def obter_cotacoes():
     '''Exporta um arquivo em Excel com as cotações das moedas desejadas.'''
-    caminho_planilha = rotulo_caminho_planilha['text']
+    try:
+        # Cria um dataframe a partir da planilha especificada
+        df_moedas = pd.read_excel(var_caminho_planilha.get())
 
-    # Cria um dataframe a partir da planilha especificada
-    df_moedas = pd.read_excel(caminho_planilha)
+        # Cria uma lista com as moedas da coluna Moedas
+        moedas = list(df_moedas['Moedas'])
 
-    # Cria uma lista com as moedas da coluna Moedas
-    moedas = list(df_moedas['Moedas'])
+        # Data inicial
+        data_inicial = formatar_data(campo_data_inicial.get())
 
-    # Data inicial
-    data_inicial = formatar_data(campo_data_inicial.get())
+        # Data final
+        data_final = formatar_data(campo_data_final.get())
 
-    # Data final
-    data_final = formatar_data(campo_data_final.get())
+        # Lista auxiliar
+        cotacoes_moeda = []
 
-    # Lista auxiliar
-    cotacoes_moeda = []
+        for moeda in moedas:
+            # URL para obter as cotações de venda das moedas selecionadas no intervalo de datas selecionado
+            url = f"https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@moeda='{moeda}'&@dataInicial='{data_inicial}'&@dataFinalCotacao='{data_final}'&$top=1000&$filter=tipoBoletim%20eq%20'Fechamento'&$format=json&$select=cotacaoVenda,dataHoraCotacao"
 
-    for moeda in moedas:
-        # URL para obter as cotações de venda das moedas selecionadas no intervalo de datas selecionado
-        url = f"https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@moeda='{moeda}'&@dataInicial='{data_inicial}'&@dataFinalCotacao='{data_final}'&$top=1000&$filter=tipoBoletim%20eq%20'Fechamento'&$format=json&$select=cotacaoVenda,dataHoraCotacao"
+            # Resposta da requisição
+            resposta = requests.get(url)
 
-        # Resposta da requisição
-        resposta = requests.get(url)
+            # Dados da resposta
+            dados = resposta.json()
 
-        # Dados da resposta
-        dados = resposta.json()
+            # Percorre a lista de dicionários da resposta
+            for valor in dados['value']:
+                # Converte a string de data num objeto datetime
+                data_hora_cotacao = dt.strptime(valor['dataHoraCotacao'], '%Y-%m-%d %H:%M:%S.%f')
 
-        # Percorre a lista de dicionários da resposta
-        for valor in dados['value']:
-            # Converte a string de data num objeto datetime
-            data_hora_cotacao = dt.strptime(valor['dataHoraCotacao'], '%Y-%m-%d %H:%M:%S.%f')
+                # Converte o objeto de data numa string
+                data_cotacao = data_hora_cotacao.strftime('%d/%m/%Y')
 
-            # Converte o objeto de data numa string
-            data_cotacao = data_hora_cotacao.strftime('%d/%m/%Y')
+                # Acrescenta uma tupla à lista auxiliar com o nome da moeda, data da cotação e cotação de venda
+                cotacoes_moeda.append((moeda, data_cotacao, valor['cotacaoVenda'])) 
 
-            # Acrescenta uma tupla à lista auxiliar com o nome da moeda, data da cotação e cotação de venda
-            cotacoes_moeda.append((moeda, data_cotacao, valor['cotacaoVenda'])) 
+        # Cria um dataframe a partir da lista auxiliar anteriormente povoada no laço de repetição
+        df_cotacoes = pd.DataFrame(columns=['Moeda', 'Data', 'Cotação'], data=cotacoes_moeda)
 
-    # Cria um dataframe a partir da lista auxiliar anteriormente povoada no laço de repetição
-    df_cotacoes = pd.DataFrame(columns=['Moeda', 'Data', 'Cotação'], data=cotacoes_moeda)
+        # Exporta o dataframe para um arquivo Excel
+        df_cotacoes.to_excel('Cotacoes.xlsx', index=False)
 
-    # Exporta o dataframe para um arquivo Excel
-    df_cotacoes.to_excel('Cotacoes.xlsx', index=False)
-
-    # Atualiza o texto do rótulo para mensagem de sucesso
-    rotulo_mensagem_sucesso['text'] = 'Cotações obtidas com sucesso.'
+        # Atualiza o texto do rótulo para mensagem de sucesso
+        rotulo_mensagem_sucesso['text'] = 'Cotações obtidas com sucesso.'
+    except:
+        rotulo_mensagem_sucesso['text'] = 'Selecione uma planilha com formato correto.'
 
 
 botao_atualizar_cotacoes = tk.Button(text='Obter Cotações', command=obter_cotacoes)
@@ -240,12 +247,7 @@ rotulo_mensagem_sucesso = tk.Label(text='')
 rotulo_mensagem_sucesso.grid(row=9, column=1, columnspan=2, padx=10, pady=10, sticky='NSEW')
 
 
-def fechar_janela():
-    '''Fecha a janela.'''
-    janela.destroy()
-
-
-botao_fechar_janela = tk.Button(text='FECHAR', command=fechar_janela)
+botao_fechar_janela = tk.Button(text='FECHAR', command=janela.quit)
 botao_fechar_janela.grid(row=10, column=2, padx=10, pady=10, sticky='NSEW')
 
 # Coloca a janela em loop
